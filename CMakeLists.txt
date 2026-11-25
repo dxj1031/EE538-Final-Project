@@ -61,6 +61,21 @@ if(BUILD_TESTING)
              COMMAND int4_bench --quick --scales 300 --csv ${INT4_SMOKE_DIR}/rejected.csv)
     set_tests_properties(int4_bench_rejects_bad_scale PROPERTIES WILL_FAIL TRUE)
 
+    # Independent NumPy FP64 reference check of the smoke output, when NumPy is available.
+    find_package(Python3 COMPONENTS Interpreter)
+    if(Python3_Interpreter_FOUND)
+        execute_process(COMMAND ${Python3_EXECUTABLE} -c "import numpy"
+                        RESULT_VARIABLE INT4_NUMPY_STATUS OUTPUT_QUIET ERROR_QUIET)
+        if(INT4_NUMPY_STATUS EQUAL 0)
+            add_test(NAME int4_bench_numpy_reference
+                     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/reference_check.py
+                             ${INT4_SMOKE_DIR}/bench.csv ${INT4_SMOKE_DIR}/dumps
+                             --out ${INT4_SMOKE_DIR}/bench_with_reference.csv)
+            set_tests_properties(int4_bench_numpy_reference PROPERTIES FIXTURES_REQUIRED int4_bench_smoke_output)
+        else()
+            message(STATUS "NumPy not found: skipping int4_bench_numpy_reference")
+        endif()
+    endif()
 endif()
 
 foreach(target int8_core int8_example int8_tests int4_example int4_tests

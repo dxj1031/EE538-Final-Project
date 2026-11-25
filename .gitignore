@@ -1,1 +1,3 @@
 /build/
+/results/*/dumps/
+__pycache__/
