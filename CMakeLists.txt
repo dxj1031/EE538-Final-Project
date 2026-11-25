@@ -1,6 +1,17 @@
 cmake_minimum_required(VERSION 3.16)
 project(int8_member1 LANGUAGES CXX)
 
+# Benchmarks must come from a release build; default single-config generators to Release.
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
+option(INT4_SANITIZE "Build with AddressSanitizer and UndefinedBehaviorSanitizer (GCC/Clang)" OFF)
+if(INT4_SANITIZE AND NOT MSVC)
+    add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all)
+    add_link_options(-fsanitize=address,undefined)
+endif()
+
 add_library(int8_core src/quantization.cpp src/scalar_kernel.cpp)
 target_include_directories(int8_core PUBLIC include)
 target_compile_features(int8_core PUBLIC cxx_std_17)
