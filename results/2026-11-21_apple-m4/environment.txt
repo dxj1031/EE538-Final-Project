@@ -1,0 +1,15 @@
+date_utc=2026-11-21T10:36:47Z
+os=Darwin 27.2.0 arm64
+cpu=Apple M4
+logical_cpus=10
+memory_bytes=17179869184
+CMAKE_BUILD_TYPE:STRING=Release
+CMAKE_CXX_COMPILER:FILEPATH=/usr/bin/c++
+CMAKE_CXX_FLAGS:STRING=
+CMAKE_CXX_FLAGS_RELEASE:STRING=-O3 -DNDEBUG
+CMAKE_GENERATOR:INTERNAL=Unix Makefiles
+cxx_version=Apple clang version 21.0.0 (clang-2100.4.1.1)
+cmake=cmake version 4.4.5
+python=Python 3.9.6
+numpy=2.0.2
+matplotlib=3.9.4
