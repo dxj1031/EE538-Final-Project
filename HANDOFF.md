@@ -12,9 +12,9 @@ Status: implemented and locally tested; interface contract v1 is proposed for te
 | `MatmulKernel<Scale>` / `ScalarKernel<Scale>` | Interface / scalar implementation provided by Member 1 |
 | `rescale_output` | Implemented by Member 1; shared by all integer kernels |
 | Hadamard rotation, prepared operator, CLI | Member 2 integration work; not implemented here |
-| Blocked kernel and C++ benchmark driver | Member 3 integration work; not implemented here |
+| Blocked kernel and C++ benchmark driver | Implemented by Member 3: `include/int4/blocked_kernel.hpp`, `bench/int4_bench.cpp`; see [docs/benchmark.md](docs/benchmark.md) |
 | Independent tests | Each member tests their module; the current core has INT64/FP64 references |
-| Scalar FP32 baseline | Required for the experiment; implementation owner should be assigned at integration |
+| Scalar FP32 baseline | Implemented by Member 3 as `bench::fp32_matmul` / `bench::Fp32Linear` (`include/bench/linear.hpp`) |
 
 Include `int4/core.hpp`. The INT4 implementation is header-only and reuses `include/int8/matrix.hpp`; copy both headers if importing the core without the rest of this directory. With CMake, link the `int4_core` interface target. Do not substitute the older INT8 quantizer or its `[N,K]` weight convention.
 
@@ -141,6 +141,12 @@ For experiments:
 
 No scratch-reuse policy or blocked-kernel allocation API is prescribed yet. The return-by-value interface exposes a complete INT32 result; any future output-buffer interface requires a coordinated contract revision.
 
+**Member 3 status (2026-11-21).** The items above are implemented:
+
+- `int4::BlockedKernel<Scale>(tile = 32)` keeps the exact `run` signature and the scalar acceptance rules. It decodes each X tile once and each W tile `ceil(M/T)` times into INT8 scratch that is allocated per call and reused across tiles. `scratch_bytes(M)` reports `(min(M,T) + T) * T`. No allocation API or output-buffer change was needed, so the v1 contract is unchanged.
+- The driver runs the scalar kernel on the same `qx`/`qw` for every case. It requires bitwise-identical INT32 sums and reconstructed Y from every blocked tile edge before it reports errors, and it records kernel-only, validation-only, and harness timings separately from the full input call.
+- The benchmark needs a prepared operator and a rotation for the rotated mode. Until Member 2's `QuantizedLinear` is merged, it uses `bench::W4A4Linear` and `bench::HadamardRotation` (`include/bench/linear.hpp`). These follow Section 4 above and are tested against a dense Q for K ≤ 64. Replace them in `bench/int4_bench.cpp` when Member 2's operator lands; docs/benchmark.md lists the methods the driver uses.
+
 ## 6. Shared integration fixture
 
 Use this exactly representable fixture before timing:
@@ -167,5 +173,7 @@ Adoption steps: review this contract together, run `int4_tests`, reproduce this 
 ## 7. Build and verification
 
 See [README.md](README.md) for exact build commands and environment details. The tested example is `examples/int4_basic.cpp`; the current test entry point is `tests/test_int4.cpp`. Float and double variants passed Release and Debug builds with warnings treated as errors. CMake/CTest, a supported sanitizer, rotation, the blocked path, and the full benchmark sweep remain unverified here.
+
+Member 3 addendum (2026-11-21, macOS arm64, Apple clang 21, CMake 4.4): the full CTest suite of 7 tests, including the INT4 core tests above, passes in Release (`-O3 -DNDEBUG`). It also passes in a Debug build with `-DINT4_SANITIZE=ON`, which enables AddressSanitizer and UndefinedBehaviorSanitizer, together with libc++ debug hardening. The blocked path and the full 45-case sweep were run; see `results/2026-11-21_apple-m4/`. GCC and MSVC builds of the new files were not available in that environment and remain unverified.
 
 Core testing includes exhaustive 225 encoding pairs and 225 one-term dot products per scale type, row/column scaling, ties, constants/zeros, odd padding, N=33, malformed representations, independent INT64/FP64 references, and analytic maximum-K guard checks. Passing these tests does not establish full-model accuracy or a speedup.
