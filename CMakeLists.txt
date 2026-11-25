@@ -16,6 +16,13 @@ target_compile_features(int4_core INTERFACE cxx_std_17)
 add_executable(int4_example examples/int4_basic.cpp)
 target_link_libraries(int4_example PRIVATE int4_core)
 
+# Member 3: blocked kernel (include/int4/blocked_kernel.hpp) and benchmark driver.
+add_executable(int4_bench bench/int4_bench.cpp)
+target_link_libraries(int4_bench PRIVATE int4_core)
+target_compile_definitions(int4_bench PRIVATE
+    INT4_BENCH_BUILD_TYPE="$<CONFIG>"
+    INT4_BENCH_COMPILER="${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
+
 include(CTest)
 if(BUILD_TESTING)
     add_executable(int8_tests tests/test_core.cpp)
@@ -32,10 +39,21 @@ if(BUILD_TESTING)
     target_link_libraries(int4_bench_tests PRIVATE int4_core)
     add_test(NAME int4_bench_support_tests COMMAND int4_bench_tests)
 
+    # End-to-end smoke run of the driver (exit status 3 would mean a kernel mismatch).
+    set(INT4_SMOKE_DIR ${CMAKE_CURRENT_BINARY_DIR}/bench_smoke)
+    add_test(NAME int4_bench_smoke
+             COMMAND int4_bench --quick --tuning-tiles 16,64 --csv ${INT4_SMOKE_DIR}/bench.csv
+                     --dump-dir ${INT4_SMOKE_DIR}/dumps)
+    set_tests_properties(int4_bench_smoke PROPERTIES FIXTURES_SETUP int4_bench_smoke_output)
+    # Invalid input must give a diagnostic and a nonzero status.
+    add_test(NAME int4_bench_rejects_bad_scale
+             COMMAND int4_bench --quick --scales 300 --csv ${INT4_SMOKE_DIR}/rejected.csv)
+    set_tests_properties(int4_bench_rejects_bad_scale PROPERTIES WILL_FAIL TRUE)
+
 endif()
 
 foreach(target int8_core int8_example int8_tests int4_example int4_tests
-               int4_blocked_tests int4_bench_tests)
+               int4_bench int4_blocked_tests int4_bench_tests)
     if(TARGET ${target})
         if(MSVC)
             target_compile_options(${target} PRIVATE /W4 /permissive-)
