@@ -10,6 +10,8 @@ The current project uses **W4A4**: both weights and activations are stored as pa
 - [Blocked kernel and benchmark driver](docs/benchmark.md) (Wooyoung Kim): kernel design, measurement protocol, CSV schema, and reproduction commands.
 - [Wooyoung Kim's report section draft](docs/report_wooyoung_kim.md): kernel design and preliminary results.
 - [Prepared operator and CLI](docs/cli.md) (Qinyan Zeng): API, input files, options, timing and tests.
+- [Qinyan Zeng's report section](docs/report_qinyan_zeng.md): rotation design, error results and limitations.
+- [Member 2 validation record](docs/validation_qinyan.md): executed compiler, sanitizer and independent-reference checks.
 
 ## Implemented scope
 
@@ -51,7 +53,7 @@ ctest --test-dir build/cmake -C Release --output-on-failure -R int4_core_tests
 
 CMake exposes the interface library `int4_core` and executables `int4_example`, `int4_tests` and `int4_cli`. Select a generator matching the local compiler on Windows. CMake/CTest commands were not validated in Member 1's environment because CMake was unavailable there.
 
-Wooyoung Kim's targets: `int4_blocked_tests`, `int4_bench_tests`, and the driver `int4_bench`. Run the whole suite with `ctest --test-dir build/cmake -C Release --output-on-failure`. With Python and NumPy it has 52 tests: the original seven suites/checks, production operator and parser suites, 24 CLI fixture combinations (each with four seeds), and 19 CLI rejection cases. The numerical CLI checks require only the Python standard library; the independent benchmark reference requires NumPy. Tests that need these packages are registered when they are available. Single-config generators now default to `Release`. `-DINT4_SANITIZE=ON` adds AddressSanitizer and UndefinedBehaviorSanitizer on GCC/Clang. The complete benchmark pipeline is `scripts/run_benchmark.sh`.
+Wooyoung Kim's targets: `int4_blocked_tests`, `int4_bench_tests`, and the driver `int4_bench`. Run the whole suite with `ctest --test-dir build/cmake -C Release --output-on-failure`. With Python and NumPy it has 54 tests: the original seven suites/checks, production operator and parser suites, 24 CLI fixture combinations (each with four seeds), 19 CLI rejection cases, an independent NumPy/dense-Q CLI check (72 outputs), and a seed-aggregation check. The two-fixture CLI checks require only the Python standard library; the additional independent CLI reference requires NumPy; the independent benchmark reference requires NumPy. Tests that need these packages are registered when they are available. Single-config generators now default to `Release`. `-DINT4_SANITIZE=ON` adds AddressSanitizer and UndefinedBehaviorSanitizer on GCC/Clang. The complete benchmark pipeline is `scripts/run_benchmark.sh` (or `scripts/run_benchmark.ps1` on Windows); both write timing and rotation-error plots.
 
 ## File-to-file CLI
 
@@ -122,14 +124,23 @@ The core accepts safe positive dimensions beyond the proposal's CLI domain. The 
 | `include/bench/*.hpp` | Wooyoung Kim: timing statistics, workloads, metrics, independent FP32 baseline, accounting, dumps |
 | `bench/int4_bench.cpp` | Wooyoung Kim: benchmark driver (CSV and metadata output) |
 | `tests/test_blocked_kernel.cpp`, `tests/test_bench.cpp` | Wooyoung Kim: blocked-kernel and benchmark-support tests |
-| `scripts/` | Wooyoung Kim: `run_benchmark.sh`, `reference_check.py` (NumPy FP64), `plot_results.py` |
+| `scripts/` | Wooyoung Kim: benchmark pipeline, NumPy reference and timing plots; Qinyan Zeng: PowerShell pipeline and rotation-error plots |
 | `results/` | Raw benchmark CSVs, metadata, plots, and summaries (`dumps/` is git-ignored) |
 
 The earlier INT8 baseline remains under `include/int8`, `src`, `examples/basic.cpp`, and `tests/test_core.cpp`. Its weight orientation and quantization rules differ; use `int4/core.hpp` and `HANDOFF.md` for the current project.
 
 ## Validation status
 
-Verified on 2026-11-04 with Windows / MSYS2 UCRT64 GCC 16.1.0:
+Current integration, verified 2026-11-25: all 54 CTest checks pass on Windows
+Clang 23.1.3 in Release and ASan/UBSan Debug, with warnings treated as errors.
+Additional GCC 11.4 Release/Debug checks pass under Ubuntu 22.04/WSL2. Both scale
+precisions have complete 45-case sweeps (330 CSV rows total), zero scalar/blocked
+mismatches and all NumPy metric checks passing. See
+[validation details](docs/validation_qinyan.md),
+[float results](results/2026-11-25_windows-x64-float/rotation_error_summary.md), and
+[double results](results/2026-11-25_windows-x64-double/rotation_error_summary.md).
+
+Historical Member 1 core validation, 2026-11-04, Windows / MSYS2 UCRT64 GCC 16.1.0:
 
 - Release: `-O2`.
 - Debug: `-O0 -g -D_GLIBCXX_DEBUG -D_GLIBCXX_ASSERTIONS`.
@@ -137,7 +148,7 @@ Verified on 2026-11-04 with Windows / MSYS2 UCRT64 GCC 16.1.0:
 - Each scale type covers all 225 adjacent code pairs and 225 one-term signed dot products, plus scale axes, padding, `N=33`, same-code INT64/FP64 references, malformed input, and accumulator-bound checks.
 - The example ran with both scale types.
 
-The INT4 maximum-K guard is checked analytically; the test does not allocate and multiply at that enormous limit. No performance sweep, sanitizer run, rotation test, or full team integration is claimed.
+The INT4 maximum-K guard is checked analytically; the test does not allocate and multiply at that enormous limit. That historical run covered the core only; the current integration checks are listed above.
 
 ## Complexity and memory accounting
 

@@ -176,6 +176,21 @@ Adoption steps: review this contract together, run `int4_tests`, reproduce this 
 
 ## 7. Build and verification
 
+**Member 2 integration (2026-11-25).** The production operator and file-to-file
+CLI are implemented. Proposal and Section 6 fixtures pass through both kernels
+in direct and rotated modes, with both scale types (the rotated fixture has its
+own expected quantization error; see docs/cli.md). Windows Clang Release and
+ASan/UBSan Debug pass all 54 CTest tests; additional GCC/WSL Release and checked
+Debug suites pass. Both full precision sweeps have zero kernel mismatches and
+330/330 independent NumPy metric agreements in total. See
+[docs/validation_qinyan.md](docs/validation_qinyan.md) and
+[docs/report_qinyan_zeng.md](docs/report_qinyan_zeng.md).
+This records Member 2's integration checks; team-wide contract acceptance remains
+subject to the adoption steps in Section 6.
+
+The following are the original Member 1 verification notes and Member 3's
+2026-11-21 addendum:
+
 See [README.md](README.md) for exact build commands and environment details. The tested example is `examples/int4_basic.cpp`; the current test entry point is `tests/test_int4.cpp`. Float and double variants passed Release and Debug builds with warnings treated as errors. CMake/CTest, a supported sanitizer, rotation, the blocked path, and the full benchmark sweep remain unverified here.
 
 Wooyoung Kim addendum (2026-11-21, macOS arm64, Apple clang 21, CMake 4.4): the full CTest suite of 7 tests, including the INT4 core tests above, passes in Release (`-O3 -DNDEBUG`). It also passes in a Debug build with `-DINT4_SANITIZE=ON`, which enables AddressSanitizer and UndefinedBehaviorSanitizer, together with libc++ debug hardening. The blocked path and the full 45-case sweep were run; see `results/2026-11-21_apple-m4/`. GCC and MSVC builds of the new files were not available in that environment and remain unverified.
