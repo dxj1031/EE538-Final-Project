@@ -75,6 +75,9 @@ if(BUILD_TESTING)
         execute_process(COMMAND ${Python3_EXECUTABLE} -c "import numpy"
                         RESULT_VARIABLE INT4_NUMPY_STATUS OUTPUT_QUIET ERROR_QUIET)
         if(INT4_NUMPY_STATUS EQUAL 0)
+            add_test(NAME int4_cli_numpy_reference
+                     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_cli_reference.py
+                             --exe $<TARGET_FILE:int4_cli>)
             add_test(NAME int4_bench_numpy_reference
                      COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/reference_check.py
                              ${INT4_SMOKE_DIR}/bench.csv ${INT4_SMOKE_DIR}/dumps

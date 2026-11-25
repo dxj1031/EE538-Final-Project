@@ -118,3 +118,10 @@ CTest runs both fixtures in three modes, two kernels and both scale types;
 each case exercises seeds 0, 1, 2 and the maximum uint64 seed. Numeric CLI tests
 use Python's standard library when an interpreter is found. Strict parser and
 operator tests, and `WILL_FAIL` rejection cases, also run without Python.
+
+When NumPy is found, `int4_cli_numpy_reference` additionally checks 72 file-to-file
+outputs at K=1,2,64 with M=3 and odd N=33, both INT4 modes, both kernels and both
+scale types. It constructs dense Q independently in Python, including an
+independent MT19937-64 sign stream, and uses NumPy quantization plus INT64 sums.
+This verifies the entire parsing/rotation/quantization/kernel/output pipeline,
+rather than deriving expected values from the C++ operator under test.
