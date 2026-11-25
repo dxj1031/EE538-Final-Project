@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Member 3: timing plots and summary tables from int4_bench results.
+"""Wooyoung Kim: timing plots and summary tables from int4_bench results.
 
 Usage:
     python3 scripts/plot_results.py RESULTS/bench_with_reference.csv [--out-dir RESULTS]

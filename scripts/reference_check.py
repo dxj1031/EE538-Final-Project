@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Member 3: independent NumPy FP64 reference check for int4_bench output.
+"""Wooyoung Kim: independent NumPy FP64 reference check for int4_bench output.
 
 For every row of the benchmark CSV this script loads the dumped X, W and Y, recomputes
 the ground truth Y64 = FP64(X) @ FP64(W) with NumPy, and recomputes the maximum absolute

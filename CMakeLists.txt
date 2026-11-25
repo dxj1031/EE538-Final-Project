@@ -27,7 +27,7 @@ target_compile_features(int4_core INTERFACE cxx_std_17)
 add_executable(int4_example examples/int4_basic.cpp)
 target_link_libraries(int4_example PRIVATE int4_core)
 
-# Member 3: blocked kernel (include/int4/blocked_kernel.hpp) and benchmark driver.
+# Wooyoung Kim: blocked kernel (include/int4/blocked_kernel.hpp) and benchmark driver.
 add_executable(int4_bench bench/int4_bench.cpp)
 target_link_libraries(int4_bench PRIVATE int4_core)
 target_compile_definitions(int4_bench PRIVATE

@@ -1,4 +1,4 @@
-// Member 3: tests for int4::BlockedKernel.
+// Wooyoung Kim: tests for int4::BlockedKernel.
 //
 // The blocked kernel must return INT32 sums identical to ScalarKernel on the same packed
 // operands (exact agreement, proposal Section 5.3) and to an independent INT64 reference

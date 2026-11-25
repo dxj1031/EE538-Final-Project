@@ -1,6 +1,6 @@
 #pragma once
 
-// Member 3: operator paths driven by the benchmark.
+// Wooyoung Kim: operator paths driven by the benchmark.
 //
 //  * Fp32Linear      - scalar FP32 baseline (independent of the INT4 path).
 //  * W4A4Linear      - direct or Hadamard-rotated W4A4 with a prepared/retained weight.

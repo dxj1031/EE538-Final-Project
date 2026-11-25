@@ -1,6 +1,6 @@
 #pragma once
 
-// Member 3: binary matrix dumps consumed by scripts/reference_check.py.
+// Wooyoung Kim: binary matrix dumps consumed by scripts/reference_check.py.
 //
 // Layout (little-endian): uint64 rows, uint64 cols, then rows*cols FP32 values in
 // row-major order (16-byte header). NumPy: np.fromfile(path, "<f4", offset=16).

@@ -1,6 +1,6 @@
-# Member 3: Blocked Kernel and Benchmark Driver
+# Blocked Kernel and Benchmark Driver
 
-Owner: Member 3 (Wooyoung Kim). This document covers `BlockedKernel`, the C++ benchmark driver `int4_bench`, the NumPy reference check, and the plotting script. Declarations in the headers are authoritative if this document disagrees with them.
+Owner: Wooyoung Kim. This document covers `BlockedKernel`, the C++ benchmark driver `int4_bench`, the NumPy reference check, and the plotting script. Declarations in the headers are authoritative if this document disagrees with them.
 
 ## Components
 

@@ -1,6 +1,6 @@
 #pragma once
 
-// Member 3: blocked W4A4 kernel.
+// Wooyoung Kim: blocked W4A4 kernel.
 //
 // Implements the same MatmulKernel<Scale>::run contract as ScalarKernel: it takes the
 // identical packed operands (row-scaled X[M,K], column-scaled W[K,N]) and returns the

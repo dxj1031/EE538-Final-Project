@@ -1,6 +1,6 @@
 #pragma once
 
-// Member 3: logical-buffer storage accounting (proposal Sections 6.5 and 7.1).
+// Wooyoung Kim: logical-buffer storage accounting (proposal Sections 6.5 and 7.1).
 //
 // Counts resident production matrices, packed bytes, scales, signs, and scratch.
 // Like storage_bytes(), it excludes vector capacity, allocator and object overhead,

@@ -1,4 +1,4 @@
-# Report Section Draft: Blocked Kernel and Benchmark Driver (Member 3)
+# Report Section Draft: Blocked Kernel and Benchmark Driver (Wooyoung Kim)
 
 Status: draft for the final report, written 2026-11-21. Every number comes from `results/2026-11-21_apple-m4/`, the full 45-case protocol run on one Apple M4 core (Apple clang 21, `-O3 -DNDEBUG`, CMake Release). Rotated-mode numbers use the benchmark's stand-in rotation (see Limitations) and should be regenerated after Member 2's operator is merged.
 
@@ -59,7 +59,7 @@ FP32 error stays below 6.5e-7 in every row. At `M = 8, a = 10`, rotation reduced
 
 `scripts/run_benchmark.sh results/<date>_<machine>` builds, tests, runs the sweep with `--tuning-tiles 16,64`, performs the NumPy reference check, and writes the plots and `summary.md`. docs/benchmark.md gives the manual commands and the CSV schema.
 
-## Contributions and AI use (Member 3, to be finalized)
+## Contributions and AI use (Wooyoung Kim, to be finalized)
 
-- **Contributions.** Member 3: blocked kernel, FP32 baseline, benchmark driver, workload generator, storage accounting, NumPy reference check, plotting, tests, and this section.
+- **Contributions.** Wooyoung Kim: blocked kernel, FP32 baseline, benchmark driver, workload generator, storage accounting, NumPy reference check, plotting, tests, and this section.
 - **AI use.** To be completed before submission.

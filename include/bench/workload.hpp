@@ -1,6 +1,6 @@
 #pragma once
 
-// Member 3: controlled, reproducible workload generation (proposal Section 6.3-6.4).
+// Wooyoung Kim: controlled, reproducible workload generation (proposal Section 6.3-6.4).
 //
 // Per scale (K = N) and data seed, a Gaussian X0 [32,K] and W [K,N] are drawn once.
 // A case takes the first M rows of X0 and multiplies the same ceil(0.01K) columns by

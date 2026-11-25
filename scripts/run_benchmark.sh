@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Member 3: reproducible benchmark pipeline.
+# Wooyoung Kim: reproducible benchmark pipeline.
 #   configure + build (Release) -> CTest -> int4_bench (full protocol + optional tile
 #   tuning) -> NumPy FP64 reference check -> plots and summary tables.
 #

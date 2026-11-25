@@ -1,4 +1,4 @@
-// Member 3: tests for the benchmark support code (include/bench/*.hpp).
+// Wooyoung Kim: tests for the benchmark support code (include/bench/*.hpp).
 //
 // Covers timing statistics, reproducible workload generation, FP64 reference and error
 // metrics, the FP32 baseline, the rotation stand-in against a dense Q for K <= 64 with

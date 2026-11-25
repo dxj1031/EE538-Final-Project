@@ -1,6 +1,6 @@
 #pragma once
 
-// Member 3: timing harness and summary statistics for the benchmark driver.
+// Wooyoung Kim: timing harness and summary statistics for the benchmark driver.
 
 #include <algorithm>
 #include <chrono>

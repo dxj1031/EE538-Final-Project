@@ -1,4 +1,4 @@
-// Member 3: C++ benchmark driver for the Hadamard-rotated INT4 linear operator.
+// Wooyoung Kim: C++ benchmark driver for the Hadamard-rotated INT4 linear operator.
 //
 // Runs the controlled protocol of proposal Section 6 on one thread and writes one CSV
 // row per (case, mode, kernel): weight-preparation time, input-call latency, kernel-only

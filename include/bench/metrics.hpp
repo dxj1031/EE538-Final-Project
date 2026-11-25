@@ -1,6 +1,6 @@
 #pragma once
 
-// Member 3: FP64 reference product and error metrics (proposal Section 6.5, Eq. 3).
+// Wooyoung Kim: FP64 reference product and error metrics (proposal Section 6.5, Eq. 3).
 // The NumPy script scripts/reference_check.py recomputes the same metrics independently.
 
 #include "int4/core.hpp"
