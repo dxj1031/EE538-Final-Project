@@ -12,7 +12,7 @@ Status: implemented and locally tested; interface contract v1 is proposed for te
 | `MatmulKernel<Scale>` / `ScalarKernel<Scale>` | Interface / scalar implementation provided by Member 1 |
 | `rescale_output` | Implemented by Member 1; shared by all integer kernels |
 | Hadamard rotation and prepared operator | Implemented by Qinyan Zeng in `include/int4/hadamard.hpp` and `include/int4/linear.hpp` |
-| File-to-file CLI | Member 2 integration work |
+| File-to-file CLI | Implemented by Qinyan Zeng in `src/int4_cli.cpp`; see [docs/cli.md](docs/cli.md) |
 | Blocked kernel and C++ benchmark driver | Implemented by Wooyoung Kim: `include/int4/blocked_kernel.hpp`, `bench/int4_bench.cpp`; see [docs/benchmark.md](docs/benchmark.md) |
 | Independent tests | Each member tests their module; the current core has INT64/FP64 references |
 | Scalar FP32 baseline | Implemented by Wooyoung Kim as `bench::fp32_matmul` / `bench::Fp32Linear` (`include/bench/linear.hpp`) |
