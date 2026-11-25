@@ -24,9 +24,15 @@ if(BUILD_TESTING)
     add_executable(int4_tests tests/test_int4.cpp)
     target_link_libraries(int4_tests PRIVATE int4_core)
     add_test(NAME int4_core_tests COMMAND int4_tests)
+
+    add_executable(int4_blocked_tests tests/test_blocked_kernel.cpp)
+    target_link_libraries(int4_blocked_tests PRIVATE int4_core)
+    add_test(NAME int4_blocked_kernel_tests COMMAND int4_blocked_tests)
+
 endif()
 
-foreach(target int8_core int8_example int8_tests int4_example int4_tests)
+foreach(target int8_core int8_example int8_tests int4_example int4_tests
+               int4_blocked_tests)
     if(TARGET ${target})
         if(MSVC)
             target_compile_options(${target} PRIVATE /W4 /permissive-)
