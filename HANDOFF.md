@@ -11,7 +11,8 @@ Status: implemented and locally tested; interface contract v1 is proposed for te
 | `quantize_int4<Scale>` | Implemented by Member 1; float/double scales |
 | `MatmulKernel<Scale>` / `ScalarKernel<Scale>` | Interface / scalar implementation provided by Member 1 |
 | `rescale_output` | Implemented by Member 1; shared by all integer kernels |
-| Hadamard rotation, prepared operator, CLI | Member 2 integration work; not implemented here |
+| Hadamard rotation and prepared operator | Implemented by Qinyan Zeng in `include/int4/hadamard.hpp` and `include/int4/linear.hpp` |
+| File-to-file CLI | Member 2 integration work |
 | Blocked kernel and C++ benchmark driver | Implemented by Wooyoung Kim: `include/int4/blocked_kernel.hpp`, `bench/int4_bench.cpp`; see [docs/benchmark.md](docs/benchmark.md) |
 | Independent tests | Each member tests their module; the current core has INT64/FP64 references |
 | Scalar FP32 baseline | Implemented by Wooyoung Kim as `bench::fp32_matmul` / `bench::Fp32Linear` (`include/bench/linear.hpp`) |
@@ -99,7 +100,8 @@ Reconstruction computes `double(sums[m,n]) * double(sx[m]) * double(sw[n])` and 
 
 ## 4. Member 2: prepared operator, rotation, and CLI
 
-Recommended lifecycle, to be implemented in your module:
+Production implementation: `int4::QuantizedLinear<Scale>` in `include/int4/linear.hpp`,
+configured with `(LinearMode, rotation_seed)`, followed by `prepare(W)`. The lifecycle is:
 
 ```text
 prepare(W, mode, rotation_seed)
@@ -118,7 +120,9 @@ run(X, kernel)
     Y = rescale_output(sums, qx.scales(), qw.scales())
 ```
 
-The lifecycle above is a design handoff, not a claim that `QuantizedLinear::prepare/run` already exists. Retain prepared weights only while W and the relevant configuration stay unchanged. Rebuild prepared state on changes to W, mode, rotation signs/seed, dimensions, or scale precision. Define failed-prepare behavior in your operator; constructing new state before replacing old state avoids partially updated weights.
+The implementation follows this lifecycle and also provides an independent FP32 mode.
+Failed preparation preserves the complete previous state through an owning-pointer exchange.
+The implicit rotation uses O(K) double workspace and checks its FP32 outputs; no dense Q is retained. Retain prepared weights only while W and the relevant configuration stay unchanged. Rebuild prepared state on changes to W, mode, rotation signs/seed, dimensions, or scale precision. Define failed-prepare behavior in your operator; constructing new state before replacing old state avoids partially updated weights.
 
 If exposing `--scale-precision float|double`, dispatch once at the outer layer to templated code. Do not add per-element runtime precision checks. Keep the FP32 baseline independent of the INT4 path. Catch exceptions in the CLI and return a diagnostic plus nonzero status.
 

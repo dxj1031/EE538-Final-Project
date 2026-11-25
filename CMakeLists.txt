@@ -49,6 +49,9 @@ if(BUILD_TESTING)
     add_executable(int4_bench_tests tests/test_bench.cpp)
     target_link_libraries(int4_bench_tests PRIVATE int4_core)
     add_test(NAME int4_bench_support_tests COMMAND int4_bench_tests)
+    add_executable(int4_linear_tests tests/test_linear.cpp)
+    target_link_libraries(int4_linear_tests PRIVATE int4_core)
+    add_test(NAME int4_linear_tests COMMAND int4_linear_tests)
 
     # End-to-end smoke run of the driver (exit status 3 would mean a kernel mismatch).
     set(INT4_SMOKE_DIR ${CMAKE_CURRENT_BINARY_DIR}/bench_smoke)
@@ -79,7 +82,7 @@ if(BUILD_TESTING)
 endif()
 
 foreach(target int8_core int8_example int8_tests int4_example int4_tests
-               int4_bench int4_blocked_tests int4_bench_tests)
+               int4_bench int4_blocked_tests int4_bench_tests int4_linear_tests)
     if(TARGET ${target})
         if(MSVC)
             target_compile_options(${target} PRIVATE /W4 /permissive-)

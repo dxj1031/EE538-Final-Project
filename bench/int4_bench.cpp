@@ -18,6 +18,7 @@
 #include "bench/workload.hpp"
 #include "int4/blocked_kernel.hpp"
 #include "int4/core.hpp"
+#include "int4/linear.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -378,10 +379,10 @@ int run_protocol(const Options& options) {
                 }
 
                 // ---- Direct and rotated W4A4 ----------------------------------------
-                for (bench::QuantMode mode : {bench::QuantMode::Direct, bench::QuantMode::Rotated}) {
-                    const bench::W4A4Linear<Scale> op = bench::measure(
+                for (int4::LinearMode mode : {int4::LinearMode::Direct, int4::LinearMode::Rotated}) {
+                    const int4::QuantizedLinear<Scale> op = bench::measure(
                         [&] {
-                            bench::W4A4Linear<Scale> fresh(mode, options.rotation_seed);
+                            int4::QuantizedLinear<Scale> fresh(mode, options.rotation_seed);
                             fresh.prepare(data.w);
                             return fresh;
                         },
@@ -406,7 +407,7 @@ int run_protocol(const Options& options) {
 
                     for (const KernelEntry<Scale>& entry : kernels_for_case<Scale>(options, spec)) {
                         Row row;
-                        row.mode = bench::mode_name(mode);
+                        row.mode = int4::mode_name(mode);
                         row.kernel = entry.name;
                         row.tile = entry.tile == 0 ? "" : std::to_string(entry.tile);
                         row.prep = prep;
@@ -428,9 +429,9 @@ int run_protocol(const Options& options) {
                                       << ' ' << row.kernel << row.tile << '\n';
                         }
                         row.error = bench::compute_errors(y, y64);
-                        row.bytes = int4_bytes(spec.m, spec.k, spec.n, mode == bench::QuantMode::Rotated,
+                        row.bytes = int4_bytes(spec.m, spec.k, spec.n, mode == int4::LinearMode::Rotated,
                                                op.weight_bytes(), op.signs_bytes(), qx.storage_bytes(),
-                                               entry.scratch_bytes(spec.m));
+                                               entry.scratch_bytes(spec.m), op.rotation_scratch_bytes());
                         row.checksum = bench::checksum(y);
                         write_row(csv, options, info, row);
                         ++rows;
