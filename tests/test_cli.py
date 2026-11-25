@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import csv
 import math
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -66,6 +67,14 @@ def main() -> None:
             assert int(row["output_bytes"]) == 4 * len(expected)
             for field in ("weight_bytes", "resident_bytes", "prep_peak_bytes", "call_peak_bytes"):
                 assert int(row[field]) > 0
+        if os.name == "nt":
+            # Both paths are new, so filesystem::equivalent cannot detect this
+            # Windows alias until the files have been created (too late).
+            command[command.index("--out") + 1] = str(directory / "case_Y.txt")
+            command[command.index("--csv") + 1] = str(directory / "CASE_Y.TXT")
+            rejected = subprocess.run(command, capture_output=True, text=True, timeout=60)
+            assert rejected.returncode != 0 and "paths must differ" in rejected.stderr
+            assert not (directory / "case_Y.txt").exists()
     print(f"PASS: {args.fixture}, {args.mode}, {args.kernel}, {args.precision}, four seeds")
 
 

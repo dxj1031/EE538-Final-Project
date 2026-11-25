@@ -73,8 +73,9 @@ auto y = op.run(x, kernel);            // X is [M,K], Y is [M,N]
 `prepare` is transactional: a new state is fully built before the old state is
 exchanged by a nonthrowing owning-pointer swap. Failure leaves weights, dimensions
 and signs unchanged. The move-only operator owns its state; moves transfer that
-state and leave the source unprepared. Run and storage access before prepare throw
-`logic_error`. Packed accessors also reject FP32 mode.
+state and leave the source unprepared. Run, weight-byte and packed-weight access
+before prepare throw `logic_error`; sign/scratch accessors return zero and
+`rotation()` returns null while unprepared. Packed accessors also reject FP32 mode.
 
 The driver uses `quantize_input(X)`, `packed_weights()`, `run(X,kernel)`,
 `weight_bytes()`, `signs_bytes()`, and `rotation_scratch_bytes()`. All retain the

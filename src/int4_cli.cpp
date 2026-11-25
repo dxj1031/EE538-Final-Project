@@ -15,6 +15,13 @@
 #include <string>
 #include <vector>
 
+#if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
 namespace {
 namespace fs = std::filesystem;
 
@@ -90,8 +97,17 @@ Options parse_args(int argc, char** argv) {
     const std::vector<fs::path> inputs{options.x_path, options.w_path};
     const std::vector<fs::path> outputs{options.out_path, options.csv_path};
     const auto same = [](const fs::path& a, const fs::path& b) {
-        return fs::weakly_canonical(a) == fs::weakly_canonical(b) ||
-               (fs::exists(a) && fs::exists(b) && fs::equivalent(a, b));
+        const auto canonical_a = fs::weakly_canonical(a);
+        const auto canonical_b = fs::weakly_canonical(b);
+#if defined(_WIN32)
+        // Existing aliases are checked below. New Windows paths can also name
+        // the same file with different case, before either output exists.
+        const bool same_name = CompareStringOrdinal(canonical_a.c_str(), -1,
+            canonical_b.c_str(), -1, TRUE) == CSTR_EQUAL;
+#else
+        const bool same_name = canonical_a == canonical_b;
+#endif
+        return same_name || (fs::exists(a) && fs::exists(b) && fs::equivalent(a, b));
     };
     if (same(outputs[0], outputs[1])) throw std::invalid_argument("Y and CSV paths must differ");
     for (const auto& output : outputs) {
