@@ -3,6 +3,8 @@ set(INT4_CLI_DATA "${CMAKE_CURRENT_SOURCE_DIR}/tests/data")
 set(INT4_CLI_BAD "${CMAKE_CURRENT_BINARY_DIR}/cli_invalid")
 file(MAKE_DIRECTORY "${INT4_CLI_BAD}")
 if(Python3_Interpreter_FOUND)
+    add_test(NAME int4_rotation_summary_tests COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_rotation_summary.py")
     foreach(fixture proposal handoff)
         foreach(mode fp32 direct rotated)
             foreach(kernel scalar blocked)

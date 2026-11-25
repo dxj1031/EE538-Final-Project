@@ -19,6 +19,8 @@ Owner: Wooyoung Kim. This document covers `BlockedKernel`, the C++ benchmark dri
 | `tests/test_bench.cpp` | Benchmark support tests (CTest `int4_bench_support_tests`) |
 | `scripts/reference_check.py` | Independent NumPy FP64 reference errors; appends `np_*` columns |
 | `scripts/plot_results.py` | Timing plots and `summary.md` tables |
+| `scripts/plot_rotation_error.py` | Qinyan Zeng: paired relative/absolute error plots and seed medians |
+| `scripts/run_benchmark.ps1` | Qinyan Zeng: native PowerShell pipeline |
 | `scripts/run_benchmark.sh` | Whole pipeline: build, CTest, sweep, reference check, plots |
 
 ## Blocked kernel
@@ -138,6 +140,7 @@ ctest --test-dir build/release -C Release --output-on-failure
 build/release/int4_bench --csv results/run/bench.csv --dump-dir results/run/dumps --tuning-tiles 16,64
 python3 scripts/reference_check.py results/run/bench.csv results/run/dumps --out results/run/bench_with_reference.csv
 python3 scripts/plot_results.py results/run/bench_with_reference.csv --out-dir results/run
+python3 scripts/plot_rotation_error.py results/run/bench_with_reference.csv --out-dir results/run
 ```
 
 Run `int4_bench --help` to list the options: `--scales`, `--seeds`, `--rotation-seed`, `--warmups`, `--runs`, `--tile`, `--tuning-tiles`, `--scalar-timing protocol|all|none`, `--scale-precision float|double`, `--quick`. Invalid options print a diagnostic and exit with status 2. Runtime errors exit with status 1.
@@ -145,3 +148,36 @@ Run `int4_bench --help` to list the options: `--scales`, `--seeds`, `--rotation-
 Keep `bench.csv`, `bench.csv.meta.txt` (seeds, outlier columns, compiler, build type, clock), `environment.txt` (CPU, memory, CMake cache flags, tool versions), `bench_with_reference.csv`, the plots, and `summary.md`. The `dumps/` directory is git-ignored and can be regenerated with the same command. A full sweep's dumps take about 25 MB.
 
 For a sanitizer build, configure with `-DINT4_SANITIZE=ON -DCMAKE_BUILD_TYPE=Debug` (GCC/Clang). This enables AddressSanitizer and UndefinedBehaviorSanitizer for every target.
+
+## Rotation error experiments (Qinyan Zeng)
+
+Run each precision into its own result directory to keep cases and references
+unambiguous. The default full sweep uses data seeds 0,1,2, rotation seed 0,
+K=N in {256,512,1024}, M in {1,8,32} at a=10, and a in {1,10,100} at M=8.
+
+```text
+scripts/run_benchmark.sh results/<date>_<machine>-float --scale-precision float
+scripts/run_benchmark.sh results/<date>_<machine>-double --scale-precision double
+```
+
+Native PowerShell (CMake, compiler and Python must be available):
+
+```powershell
+./scripts/run_benchmark.ps1 -OutputDir results/run-float -ScalePrecision float
+./scripts/run_benchmark.ps1 -OutputDir results/run-double -ScalePrecision double
+# Add -Quick to validate the pipeline on K=16,64 and seed 0.
+```
+
+Both pipeline scripts run the production operator, independent reference check,
+timing plots and rotation-error plots. The latter filters to one tile-32 blocked
+row per seed/mode; scalar and tuning duplicates never enter the medians. It
+requires validated metrics and scalar agreement, rejects duplicate/missing seed
+pairs, and groups scale precisions separately. A quick run labels its actual seed
+set; full report results use seeds 0,1,2.
+
+For each scale precision it writes relative Frobenius error and maximum absolute
+error against a (M=8) and against M (a=10), with one panel per K=N. These four plots
+are saved as PNG and vector PDF. `rotation_error_medians.csv` contains the exact
+seed medians and `rotation_error_summary.md` lists both error metrics. At a=100,
+the outlier terms dominate the output norm; maximum absolute error must be read
+alongside the relative metric. A gain in one does not guarantee a gain in the other.

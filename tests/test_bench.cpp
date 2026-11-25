@@ -355,6 +355,12 @@ void test_accounting() {
     require(r.call_peak == weight + 256 + 8192 + (8192 + 64 + act), "INT4 call peak");
     const auto d = bench::int4_bytes(8, 256, 128, false, weight, 0, act, 1280);
     require(d.call_peak == weight + 8192 + (act + 4096 + 4096), "direct call peak uses rescale phase");
+    const auto with_workspace = bench::int4_bytes(8, 256, 128, true, weight, 256, act, 1280, 2048);
+    require(with_workspace.call_peak == 35584 && with_workspace.prep_peak == r.prep_peak,
+            "FWHT workspace increases only the phase where it is alive");
+    const auto tiny = bench::int4_bytes(1, 2, 1, true, 6, 2, 5, 0, 16);
+    require(tiny.prep_peak == 34 && tiny.call_peak == 40,
+            "rotation workspace can dominate both peaks for a small operator");
 }
 
 void test_dumps() {
