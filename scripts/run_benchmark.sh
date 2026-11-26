@@ -14,7 +14,7 @@ OUT="${1:-$ROOT/results/$(date +%Y-%m-%d)_$(uname -m)}"
 BUILD="${BUILD_DIR:-$ROOT/build/release}"
 PYTHON="${PYTHON:-python3}"
 
-cmake -S "$ROOT" -B "$BUILD" -DCMAKE_BUILD_TYPE=Release
+cmake -S "$ROOT" -B "$BUILD" -DCMAKE_BUILD_TYPE=Release -DPython3_EXECUTABLE="$PYTHON"
 cmake --build "$BUILD" --config Release
 ctest --test-dir "$BUILD" -C Release --output-on-failure
 
@@ -49,4 +49,5 @@ mkdir -p "$OUT"
 "$BENCH" --csv "$OUT/bench.csv" --dump-dir "$OUT/dumps" --tuning-tiles 16,64 "$@"
 "$PYTHON" "$ROOT/scripts/reference_check.py" "$OUT/bench.csv" "$OUT/dumps" --out "$OUT/bench_with_reference.csv"
 "$PYTHON" "$ROOT/scripts/plot_results.py" "$OUT/bench_with_reference.csv" --out-dir "$OUT"
+"$PYTHON" "$ROOT/scripts/plot_rotation_error.py" "$OUT/bench_with_reference.csv" --out-dir "$OUT"
 echo "run_benchmark: results in $OUT (dumps/ is regenerable and git-ignored)"

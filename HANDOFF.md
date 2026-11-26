@@ -11,7 +11,8 @@ Status: implemented and locally tested; interface contract v1 is proposed for te
 | `quantize_int4<Scale>` | Implemented by Member 1; float/double scales |
 | `MatmulKernel<Scale>` / `ScalarKernel<Scale>` | Interface / scalar implementation provided by Member 1 |
 | `rescale_output` | Implemented by Member 1; shared by all integer kernels |
-| Hadamard rotation, prepared operator, CLI | Member 2 integration work; not implemented here |
+| Hadamard rotation and prepared operator | Implemented by Qinyan Zeng in `include/int4/hadamard.hpp` and `include/int4/linear.hpp` |
+| File-to-file CLI | Implemented by Qinyan Zeng in `src/int4_cli.cpp`; see [docs/cli.md](docs/cli.md) |
 | Blocked kernel and C++ benchmark driver | Implemented by Wooyoung Kim: `include/int4/blocked_kernel.hpp`, `bench/int4_bench.cpp`; see [docs/benchmark.md](docs/benchmark.md) |
 | Independent tests | Each member tests their module; the current core has INT64/FP64 references |
 | Scalar FP32 baseline | Implemented by Wooyoung Kim as `bench::fp32_matmul` / `bench::Fp32Linear` (`include/bench/linear.hpp`) |
@@ -99,7 +100,8 @@ Reconstruction computes `double(sums[m,n]) * double(sx[m]) * double(sw[n])` and 
 
 ## 4. Member 2: prepared operator, rotation, and CLI
 
-Recommended lifecycle, to be implemented in your module:
+Production implementation: `int4::QuantizedLinear<Scale>` in `include/int4/linear.hpp`,
+configured with `(LinearMode, rotation_seed)`, followed by `prepare(W)`. The lifecycle is:
 
 ```text
 prepare(W, mode, rotation_seed)
@@ -118,7 +120,9 @@ run(X, kernel)
     Y = rescale_output(sums, qx.scales(), qw.scales())
 ```
 
-The lifecycle above is a design handoff, not a claim that `QuantizedLinear::prepare/run` already exists. Retain prepared weights only while W and the relevant configuration stay unchanged. Rebuild prepared state on changes to W, mode, rotation signs/seed, dimensions, or scale precision. Define failed-prepare behavior in your operator; constructing new state before replacing old state avoids partially updated weights.
+The implementation follows this lifecycle and also provides an independent FP32 mode.
+Failed preparation preserves the complete previous state through an owning-pointer exchange.
+The implicit rotation uses O(K) double workspace and checks its FP32 outputs; no dense Q is retained. Retain prepared weights only while W and the relevant configuration stay unchanged. Rebuild prepared state on changes to W, mode, rotation signs/seed, dimensions, or scale precision. Define failed-prepare behavior in your operator; constructing new state before replacing old state avoids partially updated weights.
 
 If exposing `--scale-precision float|double`, dispatch once at the outer layer to templated code. Do not add per-element runtime precision checks. Keep the FP32 baseline independent of the INT4 path. Catch exceptions in the CLI and return a diagnostic plus nonzero status.
 
@@ -171,6 +175,21 @@ Both scale types give the same results for this fixture. The difference from ori
 Adoption steps: review this contract together, run `int4_tests`, reproduce this fixture through each implemented path, then mark v1 as accepted in the team repository. Changes to shape orientation, encoding, scale rules, return types, or ownership must update this document, the public declarations, and the tests together.
 
 ## 7. Build and verification
+
+**Member 2 integration (2026-11-25).** The production operator and file-to-file
+CLI are implemented. Proposal and Section 6 fixtures pass through both kernels
+in direct and rotated modes, with both scale types (the rotated fixture has its
+own expected quantization error; see docs/cli.md). Windows Clang Release and
+ASan/UBSan Debug pass all 54 CTest tests; additional GCC/WSL Release and checked
+Debug suites pass. Both full precision sweeps have zero kernel mismatches and
+330/330 independent NumPy metric agreements in total. See
+[docs/validation_qinyan.md](docs/validation_qinyan.md) and
+[docs/report_qinyan_zeng.md](docs/report_qinyan_zeng.md).
+This records Member 2's integration checks; team-wide contract acceptance remains
+subject to the adoption steps in Section 6.
+
+The following are the original Member 1 verification notes and Member 3's
+2026-11-21 addendum:
 
 See [README.md](README.md) for exact build commands and environment details. The tested example is `examples/int4_basic.cpp`; the current test entry point is `tests/test_int4.cpp`. Float and double variants passed Release and Debug builds with warnings treated as errors. CMake/CTest, a supported sanitizer, rotation, the blocked path, and the full benchmark sweep remain unverified here.
 

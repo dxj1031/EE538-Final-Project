@@ -26,6 +26,8 @@ target_include_directories(int4_core INTERFACE include)
 target_compile_features(int4_core INTERFACE cxx_std_17)
 add_executable(int4_example examples/int4_basic.cpp)
 target_link_libraries(int4_example PRIVATE int4_core)
+add_executable(int4_cli src/int4_cli.cpp)
+target_link_libraries(int4_cli PRIVATE int4_core)
 
 # Wooyoung Kim: blocked kernel (include/int4/blocked_kernel.hpp) and benchmark driver.
 add_executable(int4_bench bench/int4_bench.cpp)
@@ -49,6 +51,12 @@ if(BUILD_TESTING)
     add_executable(int4_bench_tests tests/test_bench.cpp)
     target_link_libraries(int4_bench_tests PRIVATE int4_core)
     add_test(NAME int4_bench_support_tests COMMAND int4_bench_tests)
+    add_executable(int4_linear_tests tests/test_linear.cpp)
+    target_link_libraries(int4_linear_tests PRIVATE int4_core)
+    add_test(NAME int4_linear_tests COMMAND int4_linear_tests)
+    add_executable(int4_io_tests tests/test_io.cpp)
+    target_link_libraries(int4_io_tests PRIVATE int4_core)
+    add_test(NAME int4_io_tests COMMAND int4_io_tests)
 
     # End-to-end smoke run of the driver (exit status 3 would mean a kernel mismatch).
     set(INT4_SMOKE_DIR ${CMAKE_CURRENT_BINARY_DIR}/bench_smoke)
@@ -67,6 +75,9 @@ if(BUILD_TESTING)
         execute_process(COMMAND ${Python3_EXECUTABLE} -c "import numpy"
                         RESULT_VARIABLE INT4_NUMPY_STATUS OUTPUT_QUIET ERROR_QUIET)
         if(INT4_NUMPY_STATUS EQUAL 0)
+            add_test(NAME int4_cli_numpy_reference
+                     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_cli_reference.py
+                             --exe $<TARGET_FILE:int4_cli>)
             add_test(NAME int4_bench_numpy_reference
                      COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/reference_check.py
                              ${INT4_SMOKE_DIR}/bench.csv ${INT4_SMOKE_DIR}/dumps
@@ -76,10 +87,11 @@ if(BUILD_TESTING)
             message(STATUS "NumPy not found: skipping int4_bench_numpy_reference")
         endif()
     endif()
+    include(tests/cli_tests.cmake)
 endif()
 
 foreach(target int8_core int8_example int8_tests int4_example int4_tests
-               int4_bench int4_blocked_tests int4_bench_tests)
+               int4_bench int4_blocked_tests int4_bench_tests int4_linear_tests int4_io_tests int4_cli)
     if(TARGET ${target})
         if(MSVC)
             target_compile_options(${target} PRIVATE /W4 /permissive-)

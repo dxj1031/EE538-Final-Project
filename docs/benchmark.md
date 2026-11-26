@@ -10,7 +10,8 @@ Owner: Wooyoung Kim. This document covers `BlockedKernel`, the C++ benchmark dri
 | `include/bench/stats.hpp` | `steady_clock` timing harness, median / Q1 / Q3 / IQR |
 | `include/bench/workload.hpp` | Seeded workloads (proposal Section 6.3), case list (Section 6.4) |
 | `include/bench/metrics.hpp` | FP64 reference product, max-abs and relative Frobenius error (Eq. 3) |
-| `include/bench/linear.hpp` | FP32 baseline, a **stand-in** rotation and prepared W4A4 operator (see below) |
+| `include/bench/linear.hpp` | Independent scalar FP32 baseline (Wooyoung Kim) |
+| `include/int4/hadamard.hpp`, `include/int4/linear.hpp` | Production rotation and `int4::QuantizedLinear<Scale>` (Qinyan Zeng) |
 | `include/bench/accounting.hpp` | Logical-buffer storage accounting |
 | `include/bench/dump.hpp` | Binary matrix dumps for the Python reference check |
 | `bench/int4_bench.cpp` | Benchmark driver executable |
@@ -18,6 +19,8 @@ Owner: Wooyoung Kim. This document covers `BlockedKernel`, the C++ benchmark dri
 | `tests/test_bench.cpp` | Benchmark support tests (CTest `int4_bench_support_tests`) |
 | `scripts/reference_check.py` | Independent NumPy FP64 reference errors; appends `np_*` columns |
 | `scripts/plot_results.py` | Timing plots and `summary.md` tables |
+| `scripts/plot_rotation_error.py` | Qinyan Zeng: paired relative/absolute error plots and seed medians |
+| `scripts/run_benchmark.ps1` | Qinyan Zeng: native PowerShell pipeline |
 | `scripts/run_benchmark.sh` | Whole pipeline: build, CTest, sweep, reference check, plots |
 
 ## Blocked kernel
@@ -33,16 +36,34 @@ Owner: Wooyoung Kim. This document covers `BlockedKernel`, the C++ benchmark dri
 
 `BlockedKernel` uses only standard C++. It contains no intrinsics, SIMD code, or threads. The compiler may auto-vectorize the contiguous inner loop at `-O2`.
 
-## Stand-in rotation and prepared operator
+## Production rotation and prepared operator
 
-The proposal assigns `QuantizedLinear::prepare/run` and the Hadamard rotation to Member 2. Neither was in the repository when this benchmark was written. To measure all three modes, `include/bench/linear.hpp` implements the lifecycle from HANDOFF.md Section 4 as `bench::W4A4Linear<Scale>` and `bench::HadamardRotation`:
+The benchmark now uses Qinyan Zeng's `int4::QuantizedLinear<Scale>` and
+`int4::HadamardRotation`; the temporary `bench::W4A4Linear` and
+`bench::HadamardRotation` have been removed. The independent FP32 baseline stays
+in `include/bench/linear.hpp` and is also reused by the operator's FP32 mode.
 
-- `Q = D H_K`, with seeded signs `D_ii` drawn from `std::mt19937_64(rotation_seed)`, top bit set meaning -1. `H_K` is the orthonormal Sylvester Walsh–Hadamard matrix, applied in place by the fast transform in FP32. A dense Q is never allocated.
-- `X' = XQ` scales the columns by `d`, then applies the FWHT to each row. `W' = Q^T W` scales the rows by `d`, then applies the FWHT along K.
-- `prepare(W)` validates the domain (K a power of two ≤ 1024, `N ≤ 1024`, finite values). It rotates if needed and quantizes per column. New state is built before it replaces the old state, so a failed `prepare` leaves the previous state intact. `run(X, kernel)` validates `M ≤ 32` and K, rotates with the same Q, quantizes per row, calls the kernel, and rescales.
-- Tests compare the fast transform with a dense `Q` for K ≤ 64 using shared signs. They also check `Q^T Q = I` and that the unquantized identity `(XQ)(Q^T W) = XW` holds to relative error 1e-5.
+- `Q = D H_K`; signs use the original `std::mt19937_64` top-bit mapping, so sign
+  seeds retain their meaning. XQ applies signs before a row FWHT; Q^T W applies
+  signs before a column FWHT. Production code never constructs dense Q.
+- Butterflies and normalization use a reusable K-element double workspace; each
+  transformed result is checked and cast to FP32 once. This avoids spurious
+  overflow in unnormalized FP32 butterflies. True FP32 result overflow is rejected.
+- `prepare(W)` enforces power-of-two K in [1,1024], N in [1,1024], and finite
+  inputs. It builds a complete new state, then exchanges owning pointers without
+  throwing. Failed validation, allocation, rotation or quantization keeps the old
+  state. The operator is move-only and owns its retained weights.
+- `run(X,kernel)` enforces M in [1,32] and matching K. INT4 modes rotate if needed,
+  quantize rows, call the shared kernel interface, and use `rescale_output` once.
+  FP32 mode uses the independent baseline and rejects nonfinite output.
+- Driver accessors are `quantize_input`, `packed_weights`, `weight_bytes`,
+  `signs_bytes`, and `rotation_scratch_bytes`. Packed accessors reject FP32 mode.
+- The existing dense-Q, orthogonality and unquantized-identity tests now exercise
+  the production classes. Additional tests cover all allowed K values, extreme
+  seeds, overflow, failed reprepare, ownership and all three modes.
 
-**When Member 2's operator is merged**, replace the two `bench::` classes in `bench/int4_bench.cpp`. The driver calls only `prepare(W)`, `quantize_input(X)`, `packed_weights()`, `run(X, kernel)`, `weight_bytes()`, and `signs_bytes()`. Rotated-mode error numbers depend on the sign generator, so rerun the sweep after the swap. FP32, direct, and kernel-comparison numbers do not depend on it.
+Rerun the full sweep after this integration: double butterfly intermediates can
+change rounding and quantized codes relative to the original temporary FP32 path.
 
 ## Workloads (proposal Sections 6.3–6.4)
 
@@ -98,6 +119,12 @@ There is one row per (case, mode, kernel, tile). Times are in nanoseconds and si
 
 `reference_check.py` adds `np_max_abs_err`, `np_rel_frob_err`, `np_metrics_agree`, `np_direct_samecode_ok`, and `np_direct_samecode_exact_frac`.
 
+The rotation workspace is `8*K` logical bytes and is released before quantization.
+Preparation and call peaks take the maximum of the rotation, quantization, kernel
+and reconstruction phases; the workspace is not added to simultaneously dead
+quantizer buffers. Preparation estimates describe an initially unprepared operator;
+repreparing an existing operator also retains its old state until commit.
+
 The accounting covers logical buffer contents in the same sense as `storage_bytes()`. It excludes vector capacity, allocator and object overhead, offline references (`Y64`), and process memory. It is not a measurement of resident set size.
 
 ## Running
@@ -113,6 +140,7 @@ ctest --test-dir build/release -C Release --output-on-failure
 build/release/int4_bench --csv results/run/bench.csv --dump-dir results/run/dumps --tuning-tiles 16,64
 python3 scripts/reference_check.py results/run/bench.csv results/run/dumps --out results/run/bench_with_reference.csv
 python3 scripts/plot_results.py results/run/bench_with_reference.csv --out-dir results/run
+python3 scripts/plot_rotation_error.py results/run/bench_with_reference.csv --out-dir results/run
 ```
 
 Run `int4_bench --help` to list the options: `--scales`, `--seeds`, `--rotation-seed`, `--warmups`, `--runs`, `--tile`, `--tuning-tiles`, `--scalar-timing protocol|all|none`, `--scale-precision float|double`, `--quick`. Invalid options print a diagnostic and exit with status 2. Runtime errors exit with status 1.
@@ -120,3 +148,36 @@ Run `int4_bench --help` to list the options: `--scales`, `--seeds`, `--rotation-
 Keep `bench.csv`, `bench.csv.meta.txt` (seeds, outlier columns, compiler, build type, clock), `environment.txt` (CPU, memory, CMake cache flags, tool versions), `bench_with_reference.csv`, the plots, and `summary.md`. The `dumps/` directory is git-ignored and can be regenerated with the same command. A full sweep's dumps take about 25 MB.
 
 For a sanitizer build, configure with `-DINT4_SANITIZE=ON -DCMAKE_BUILD_TYPE=Debug` (GCC/Clang). This enables AddressSanitizer and UndefinedBehaviorSanitizer for every target.
+
+## Rotation error experiments (Qinyan Zeng)
+
+Run each precision into its own result directory to keep cases and references
+unambiguous. The default full sweep uses data seeds 0,1,2, rotation seed 0,
+K=N in {256,512,1024}, M in {1,8,32} at a=10, and a in {1,10,100} at M=8.
+
+```text
+scripts/run_benchmark.sh results/<date>_<machine>-float --scale-precision float
+scripts/run_benchmark.sh results/<date>_<machine>-double --scale-precision double
+```
+
+Native PowerShell (CMake, compiler and Python must be available):
+
+```powershell
+./scripts/run_benchmark.ps1 -OutputDir results/run-float -ScalePrecision float
+./scripts/run_benchmark.ps1 -OutputDir results/run-double -ScalePrecision double
+# Add -Quick to validate the pipeline on K=16,64 and seed 0.
+```
+
+Both pipeline scripts run the production operator, independent reference check,
+timing plots and rotation-error plots. The latter filters to one tile-32 blocked
+row per seed/mode; scalar and tuning duplicates never enter the medians. It
+requires validated metrics and scalar agreement, rejects duplicate/missing seed
+pairs, and groups scale precisions separately. A quick run labels its actual seed
+set; full report results use seeds 0,1,2.
+
+For each scale precision it writes relative Frobenius error and maximum absolute
+error against a (M=8) and against M (a=10), with one panel per K=N. These four plots
+are saved as PNG and vector PDF. `rotation_error_medians.csv` contains the exact
+seed medians and `rotation_error_summary.md` lists both error metrics. At a=100,
+the outlier terms dominate the output norm; maximum absolute error must be read
+alongside the relative metric. A gain in one does not guarantee a gain in the other.

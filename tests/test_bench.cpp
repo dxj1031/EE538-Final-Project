@@ -1,7 +1,7 @@
 // Wooyoung Kim: tests for the benchmark support code (include/bench/*.hpp).
 //
 // Covers timing statistics, reproducible workload generation, FP64 reference and error
-// metrics, the FP32 baseline, the rotation stand-in against a dense Q for K <= 64 with
+// metrics, the FP32 baseline, the production rotation against a dense Q for K <= 64 with
 // shared signs, the prepared-operator lifecycle, storage accounting, and binary dumps.
 
 #include "bench/accounting.hpp"
@@ -12,6 +12,7 @@
 #include "bench/workload.hpp"
 #include "int4/blocked_kernel.hpp"
 #include "int4/core.hpp"
+#include "int4/linear.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -211,7 +212,7 @@ std::vector<double> dense_hadamard(std::size_t k) {
 
 void test_rotation_against_dense_q() {
     for (std::size_t k : {1U, 2U, 4U, 8U, 16U, 32U, 64U}) {
-        const bench::HadamardRotation rotation(k, 0);
+        const int4::HadamardRotation rotation(k, 0);
         const auto h = dense_hadamard(k);
         // Q = D H / sqrt(K) with the SAME signs as the fast path.
         std::vector<double> q(k * k);
@@ -253,9 +254,9 @@ void test_rotation_against_dense_q() {
         const auto err = bench::compute_errors(rotated_product, bench::reference_fp64(x, w));
         require(err.rel_frobenius <= 1e-5, "rotation equivalence");
     }
-    const bench::HadamardRotation a(64, 0);
-    const bench::HadamardRotation b(64, 0);
-    const bench::HadamardRotation c(64, 1);
+    const int4::HadamardRotation a(64, 0);
+    const int4::HadamardRotation b(64, 0);
+    const int4::HadamardRotation c(64, 1);
     require(a.signs() == b.signs() && a.signs() != c.signs(), "seeded signs are reproducible");
     std::size_t negatives = 0;
     for (auto s : a.signs()) {
@@ -264,8 +265,8 @@ void test_rotation_against_dense_q() {
     }
     require(negatives > 0 && negatives < 64, "both signs occur");
     require(a.storage_bytes() == 64, "one byte per sign");
-    rejects<std::invalid_argument>([] { (void)bench::HadamardRotation(3, 0); }, "non power of two");
-    rejects<std::invalid_argument>([] { (void)bench::HadamardRotation(0, 0); }, "zero size");
+    rejects<std::invalid_argument>([] { (void)int4::HadamardRotation(3, 0); }, "non power of two");
+    rejects<std::invalid_argument>([] { (void)int4::HadamardRotation(0, 0); }, "zero size");
     Matrix<float> wrong(2, 32);
     rejects<std::invalid_argument>([&] { a.apply_right(wrong); }, "X columns != K");
     rejects<std::invalid_argument>([&] { a.apply_transpose_left(wrong); }, "W rows != K");
@@ -279,25 +280,25 @@ void test_w4a4_operator() {
     // Proposal example: Y = 7 within floating-point tolerance in every mode.
     const Matrix<float> x(1, 2, {1, -1});
     const Matrix<float> w(2, 1, {7, 0});
-    for (auto mode : {bench::QuantMode::Direct, bench::QuantMode::Rotated}) {
+    for (auto mode : {int4::LinearMode::Direct, int4::LinearMode::Rotated}) {
         for (std::uint64_t seed : {0U, 1U, 2U, 3U}) {
-            bench::W4A4Linear<Scale> op(mode, seed);
+            int4::QuantizedLinear<Scale> op(mode, seed);
             op.prepare(w);
             const auto ys = op.run(x, scalar);
             const auto yb = op.run(x, blocked);
-            require(std::abs(ys(0, 0) - 7.0F) < 1e-5F, "proposal example in " + std::string(bench::mode_name(mode)));
+            require(std::abs(ys(0, 0) - 7.0F) < 1e-5F, "proposal example in " + std::string(int4::mode_name(mode)));
             require(bench::identical(ys, yb), "scalar and blocked agree inside the operator");
         }
     }
     // HANDOFF.md shared fixture through the direct operator.
-    bench::W4A4Linear<Scale> direct(bench::QuantMode::Direct, 0);
+    int4::QuantizedLinear<Scale> direct(int4::LinearMode::Direct, 0);
     direct.prepare(Matrix<float>(2, 2, {7, 0, 0, 14}));
     const auto y = direct.run(Matrix<float>(1, 2, {7, -3.5F}), blocked);
     require(y(0, 0) == 49.0F && y(0, 1) == -56.0F, "HANDOFF fixture through the operator");
     require(direct.signs_bytes() == 0 && direct.rotation() == nullptr, "direct mode has no signs");
 
     // Lifecycle: run before prepare, strong guarantee on failed prepare, domain checks.
-    bench::W4A4Linear<Scale> rotated(bench::QuantMode::Rotated, 0);
+    int4::QuantizedLinear<Scale> rotated(int4::LinearMode::Rotated, 0);
     rejects<std::logic_error>([&] { (void)rotated.run(x, blocked); }, "run before prepare");
     rotated.prepare(w);
     const auto bytes_before = rotated.packed_weights().bytes();
@@ -314,7 +315,7 @@ void test_w4a4_operator() {
 
     // Proposal storage budget: K = N = 1024 packed W is 0.5 MiB plus one scale per column.
     const auto data = bench::generate_scale_data(1024, 1024, 0);
-    bench::W4A4Linear<Scale> big(bench::QuantMode::Rotated, 0);
+    int4::QuantizedLinear<Scale> big(int4::LinearMode::Rotated, 0);
     big.prepare(data.w);
     require(big.packed_weights().bytes().size() == 524288, "packed W bytes at K = N = 1024");
     require(big.weight_bytes() == 524288 + 1024 * sizeof(Scale), "packed W + scales");
@@ -329,8 +330,8 @@ void test_rotation_reduces_outlier_error() {
     const auto x = bench::make_case_input(data, 8, 100);
     const auto y64 = bench::reference_fp64(x, data.w);
     const int4::BlockedKernel<Scale> kernel;
-    bench::W4A4Linear<Scale> direct(bench::QuantMode::Direct, 0);
-    bench::W4A4Linear<Scale> rotated(bench::QuantMode::Rotated, 0);
+    int4::QuantizedLinear<Scale> direct(int4::LinearMode::Direct, 0);
+    int4::QuantizedLinear<Scale> rotated(int4::LinearMode::Rotated, 0);
     direct.prepare(data.w);
     rotated.prepare(data.w);
     const double direct_error = bench::compute_errors(direct.run(x, kernel), y64).rel_frobenius;
@@ -354,6 +355,12 @@ void test_accounting() {
     require(r.call_peak == weight + 256 + 8192 + (8192 + 64 + act), "INT4 call peak");
     const auto d = bench::int4_bytes(8, 256, 128, false, weight, 0, act, 1280);
     require(d.call_peak == weight + 8192 + (act + 4096 + 4096), "direct call peak uses rescale phase");
+    const auto with_workspace = bench::int4_bytes(8, 256, 128, true, weight, 256, act, 1280, 2048);
+    require(with_workspace.call_peak == 35584 && with_workspace.prep_peak == r.prep_peak,
+            "FWHT workspace increases only the phase where it is alive");
+    const auto tiny = bench::int4_bytes(1, 2, 1, true, 6, 2, 5, 0, 16);
+    require(tiny.prep_peak == 34 && tiny.call_peak == 40,
+            "rotation workspace can dominate both peaks for a small operator");
 }
 
 void test_dumps() {

@@ -38,7 +38,8 @@ inline Bytes fp32_bytes(std::size_t m, std::size_t k, std::size_t n) {
 
 // weight/signs/act/scratch come from the live objects (storage_bytes(), scratch_bytes()).
 inline Bytes int4_bytes(std::size_t m, std::size_t k, std::size_t n, bool rotated, std::size_t weight,
-                        std::size_t signs, std::size_t act, std::size_t scratch) {
+                        std::size_t signs, std::size_t act, std::size_t scratch,
+                        std::size_t rotation_scratch = 0) {
     Bytes bytes;
     bytes.weight = weight;
     bytes.signs = signs;
@@ -50,9 +51,15 @@ inline Bytes int4_bytes(std::size_t m, std::size_t k, std::size_t n, bool rotate
     // prepare(): caller W + rotated copy W' + quantizer maxima (double) + packed W + signs.
     bytes.prep_peak = k * n * sizeof(float) + (rotated ? k * n * sizeof(float) : 0) + n * sizeof(double) +
                       weight + signs;
+    if (rotated) {
+        // The double FWHT workspace is released before quantization allocates
+        // maxima/codes/scales; these are separate lifetime peaks.
+        bytes.prep_peak = std::max(bytes.prep_peak, 2 * k * n * sizeof(float) + signs + rotation_scratch);
+    }
     // run(): quantize phase (X' copy + maxima + qx), kernel phase (qx + sums + scratch),
     // rescale phase (qx + sums + Y); the largest phase on top of resident state and X.
-    const std::size_t quantize_phase = (rotated ? m * k * sizeof(float) : 0) + m * sizeof(double) + act;
+    const std::size_t quantize_phase = (rotated ? m * k * sizeof(float) : 0) +
+        std::max(m * sizeof(double) + act, rotated ? rotation_scratch : std::size_t{0});
     const std::size_t kernel_phase = act + bytes.sums + scratch;
     const std::size_t rescale_phase = act + bytes.sums + bytes.output;
     bytes.call_peak = bytes.resident() + bytes.input + std::max({quantize_phase, kernel_phase, rescale_phase});
