@@ -1,6 +1,17 @@
 cmake_minimum_required(VERSION 3.16)
 project(int8_member1 LANGUAGES CXX)
 
+# Benchmarks must come from a release build; default single-config generators to Release.
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
+option(INT4_SANITIZE "Build with AddressSanitizer and UndefinedBehaviorSanitizer (GCC/Clang)" OFF)
+if(INT4_SANITIZE AND NOT MSVC)
+    add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all)
+    add_link_options(-fsanitize=address,undefined)
+endif()
+
 add_library(int8_core src/quantization.cpp src/scalar_kernel.cpp)
 target_include_directories(int8_core PUBLIC include)
 target_compile_features(int8_core PUBLIC cxx_std_17)
@@ -16,6 +27,13 @@ target_compile_features(int4_core INTERFACE cxx_std_17)
 add_executable(int4_example examples/int4_basic.cpp)
 target_link_libraries(int4_example PRIVATE int4_core)
 
+# Wooyoung Kim: blocked kernel (include/int4/blocked_kernel.hpp) and benchmark driver.
+add_executable(int4_bench bench/int4_bench.cpp)
+target_link_libraries(int4_bench PRIVATE int4_core)
+target_compile_definitions(int4_bench PRIVATE
+    INT4_BENCH_BUILD_TYPE="$<CONFIG>"
+    INT4_BENCH_COMPILER="${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
+
 include(CTest)
 if(BUILD_TESTING)
     add_executable(int8_tests tests/test_core.cpp)
@@ -24,9 +42,44 @@ if(BUILD_TESTING)
     add_executable(int4_tests tests/test_int4.cpp)
     target_link_libraries(int4_tests PRIVATE int4_core)
     add_test(NAME int4_core_tests COMMAND int4_tests)
+
+    add_executable(int4_blocked_tests tests/test_blocked_kernel.cpp)
+    target_link_libraries(int4_blocked_tests PRIVATE int4_core)
+    add_test(NAME int4_blocked_kernel_tests COMMAND int4_blocked_tests)
+    add_executable(int4_bench_tests tests/test_bench.cpp)
+    target_link_libraries(int4_bench_tests PRIVATE int4_core)
+    add_test(NAME int4_bench_support_tests COMMAND int4_bench_tests)
+
+    # End-to-end smoke run of the driver (exit status 3 would mean a kernel mismatch).
+    set(INT4_SMOKE_DIR ${CMAKE_CURRENT_BINARY_DIR}/bench_smoke)
+    add_test(NAME int4_bench_smoke
+             COMMAND int4_bench --quick --tuning-tiles 16,64 --csv ${INT4_SMOKE_DIR}/bench.csv
+                     --dump-dir ${INT4_SMOKE_DIR}/dumps)
+    set_tests_properties(int4_bench_smoke PROPERTIES FIXTURES_SETUP int4_bench_smoke_output)
+    # Invalid input must give a diagnostic and a nonzero status.
+    add_test(NAME int4_bench_rejects_bad_scale
+             COMMAND int4_bench --quick --scales 300 --csv ${INT4_SMOKE_DIR}/rejected.csv)
+    set_tests_properties(int4_bench_rejects_bad_scale PROPERTIES WILL_FAIL TRUE)
+
+    # Independent NumPy FP64 reference check of the smoke output, when NumPy is available.
+    find_package(Python3 COMPONENTS Interpreter)
+    if(Python3_Interpreter_FOUND)
+        execute_process(COMMAND ${Python3_EXECUTABLE} -c "import numpy"
+                        RESULT_VARIABLE INT4_NUMPY_STATUS OUTPUT_QUIET ERROR_QUIET)
+        if(INT4_NUMPY_STATUS EQUAL 0)
+            add_test(NAME int4_bench_numpy_reference
+                     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/reference_check.py
+                             ${INT4_SMOKE_DIR}/bench.csv ${INT4_SMOKE_DIR}/dumps
+                             --out ${INT4_SMOKE_DIR}/bench_with_reference.csv)
+            set_tests_properties(int4_bench_numpy_reference PROPERTIES FIXTURES_REQUIRED int4_bench_smoke_output)
+        else()
+            message(STATUS "NumPy not found: skipping int4_bench_numpy_reference")
+        endif()
+    endif()
 endif()
 
-foreach(target int8_core int8_example int8_tests int4_example int4_tests)
+foreach(target int8_core int8_example int8_tests int4_example int4_tests
+               int4_bench int4_blocked_tests int4_bench_tests)
     if(TARGET ${target})
         if(MSVC)
             target_compile_options(${target} PRIVATE /W4 /permissive-)

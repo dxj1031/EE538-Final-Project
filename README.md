@@ -7,6 +7,8 @@ The current project uses **W4A4**: both weights and activations are stored as pa
 ## Documentation
 
 - [Team handoff and interface contract](HANDOFF.md): integration instructions for Members 2 and 3.
+- [Blocked kernel and benchmark driver](docs/benchmark.md) (Wooyoung Kim): kernel design, measurement protocol, CSV schema, and reproduction commands.
+- [Wooyoung Kim's report section draft](docs/report_wooyoung_kim.md): design and preliminary results.
 
 ## Implemented scope
 
@@ -18,7 +20,7 @@ The current project uses **W4A4**: both weights and activations are stored as pa
 - INT32 accumulation followed by shared FP32 output reconstruction.
 - Tests using known encodings, independent INT64 accumulation, and FP64 output references.
 
-Hadamard rotation, the prepared operator, the CLI, the blocked kernel, and the performance benchmark are integration work for the other members. The example is a correctness demonstration, not a benchmark. Scalar arithmetic decodes codes to ordinary integer operands; this implementation does not use a hardware INT4 instruction.
+Wooyoung Kim added `BlockedKernel<Scale>` (`include/int4/blocked_kernel.hpp`), the scalar FP32 baseline, and the `int4_bench` driver with its NumPy reference check; see [docs/benchmark.md](docs/benchmark.md). Hadamard rotation, the prepared operator, and the CLI remain Member 2's integration work. Until that work is merged, the benchmark uses a documented stand-in (`include/bench/linear.hpp`). The example is a correctness demonstration, not a benchmark. Scalar arithmetic decodes codes to ordinary integer operands; this implementation does not use a hardware INT4 instruction.
 
 ## Build and run
 
@@ -46,7 +48,9 @@ cmake --build build/cmake --config Release
 ctest --test-dir build/cmake -C Release --output-on-failure -R int4_core_tests
 ```
 
-CMake exposes the interface library `int4_core` and executables `int4_example` and `int4_tests`. Select a generator matching the local compiler on Windows. CMake/CTest commands have not been validated in the current environment because CMake is unavailable.
+CMake exposes the interface library `int4_core` and executables `int4_example` and `int4_tests`. Select a generator matching the local compiler on Windows. CMake/CTest commands were not validated in Member 1's environment because CMake was unavailable there.
+
+Wooyoung Kim's targets: `int4_blocked_tests`, `int4_bench_tests`, and the driver `int4_bench`. Run the whole suite with `ctest --test-dir build/cmake -C Release --output-on-failure`. It has 7 tests: the two core suites, the blocked-kernel and benchmark-support suites, a driver smoke run, a check that invalid input is rejected, and a NumPy reference check that is registered only when Python with NumPy is found. Single-config generators now default to `Release`. `-DINT4_SANITIZE=ON` adds AddressSanitizer and UndefinedBehaviorSanitizer on GCC/Clang. The complete benchmark pipeline is `scripts/run_benchmark.sh`.
 
 ## Minimal usage
 
@@ -99,6 +103,12 @@ The core accepts safe positive dimensions beyond the proposal's CLI domain. The 
 | `examples/int4_basic.cpp` | Both scale variants through the virtual kernel interface |
 | `tests/test_int4.cpp` | INT4 encoding, arithmetic, reference, and rejection tests |
 | `CMakeLists.txt` | Build targets for the current module and the earlier INT8 baseline |
+| `include/int4/blocked_kernel.hpp` | Wooyoung Kim: blocked INT4 kernel (32-by-32 tiles decoded into reusable INT8 scratch) |
+| `include/bench/*.hpp` | Wooyoung Kim: timing statistics, workloads, metrics, FP32 baseline and operator stand-in, accounting, dumps |
+| `bench/int4_bench.cpp` | Wooyoung Kim: benchmark driver (CSV and metadata output) |
+| `tests/test_blocked_kernel.cpp`, `tests/test_bench.cpp` | Wooyoung Kim: blocked-kernel and benchmark-support tests |
+| `scripts/` | Wooyoung Kim: `run_benchmark.sh`, `reference_check.py` (NumPy FP64), `plot_results.py` |
+| `results/` | Raw benchmark CSVs, metadata, plots, and summaries (`dumps/` is git-ignored) |
 
 The earlier INT8 baseline remains under `include/int8`, `src`, `examples/basic.cpp`, and `tests/test_core.cpp`. Its weight orientation and quantization rules differ; use `int4/core.hpp` and `HANDOFF.md` for the current project.
 
