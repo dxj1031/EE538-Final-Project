@@ -51,7 +51,7 @@ cmake --build build/cmake --config Release
 ctest --test-dir build/cmake -C Release --output-on-failure -R int4_core_tests
 ```
 
-CMake exposes the interface library `int4_core` and executables `int4_example`, `int4_tests` and `int4_cli`. Select a generator matching the local compiler on Windows. CMake/CTest commands were not validated in Member 1's environment because CMake was unavailable there.
+CMake exposes the interface library `int4_core` and executables `int4_example`, `int4_tests` and `int4_cli`. Select a generator matching the local compiler on Windows: `-G Ninja -DCMAKE_CXX_COMPILER=g++` for MSYS2 GCC, or `-G "Visual Studio 18 2026" -A x64` for MSVC.
 
 Wooyoung Kim's targets: `int4_blocked_tests`, `int4_bench_tests`, and the driver `int4_bench`. Run the whole suite with `ctest --test-dir build/cmake -C Release --output-on-failure`. With Python and NumPy it has 54 tests: the original seven suites/checks, production operator and parser suites, 24 CLI fixture combinations (each with four seeds), 19 CLI rejection cases, an independent NumPy/dense-Q CLI check (72 outputs), and a seed-aggregation check. The two-fixture CLI checks require only the Python standard library; the additional independent CLI reference requires NumPy; the independent benchmark reference requires NumPy. Tests that need these packages are registered when they are available. Single-config generators now default to `Release`. `-DINT4_SANITIZE=ON` adds AddressSanitizer and UndefinedBehaviorSanitizer on GCC/Clang. The complete benchmark pipeline is `scripts/run_benchmark.sh` (or `scripts/run_benchmark.ps1` on Windows); both write timing and rotation-error plots.
 
@@ -131,7 +131,25 @@ The earlier INT8 baseline remains under `include/int8`, `src`, `examples/basic.c
 
 ## Validation status
 
-Current integration, verified 2026-11-25: all 54 CTest checks pass on Windows
+Merged `main`, verified 2026-11-26 on Windows 11 with CMake 4.4.4: all 54 CTest checks pass
+with GCC 16.1.0 (MSYS2 UCRT64) in Release and in Debug with
+`-D_GLIBCXX_DEBUG -D_GLIBCXX_ASSERTIONS`, and with MSVC 19.50 (Visual Studio 2026) in
+Release (`/W4 /permissive-`, no warnings) and in Debug with `/fsanitize=address`. MinGW GCC
+has no AddressSanitizer on Windows, so MSVC provides the sanitizer run. GCC 16 prints one
+`-Wmaybe-uninitialized` warning for `std::optional` in `bench/int4_bench.cpp`; it is a
+compiler false positive and no test is affected. Commands and details are in
+[HANDOFF.md Section 7](HANDOFF.md#7-build-and-verification).
+
+```text
+cmake -S . -B build/msvc-asan -G "Visual Studio 18 2026" -A x64 "-DCMAKE_CXX_FLAGS=/fsanitize=address /EHsc"
+cmake --build build/msvc-asan --config Debug
+ctest --test-dir build/msvc-asan -C Debug --output-on-failure
+```
+
+The ASan run needs the MSVC `bin\Hostx64\x64` directory on `PATH` so the tests can load
+`clang_rt.asan_dynamic-x86_64.dll`.
+
+Integration checks, verified 2026-11-25: all 54 CTest checks pass on Windows
 Clang 23.1.3 in Release and ASan/UBSan Debug, with warnings treated as errors.
 Additional GCC 11.4 Release/Debug checks pass under Ubuntu 22.04/WSL2. Both scale
 precisions have complete 45-case sweeps (330 CSV rows total), zero scalar/blocked
@@ -148,7 +166,7 @@ Historical Member 1 core validation, 2026-11-04, Windows / MSYS2 UCRT64 GCC 16.1
 - Each scale type covers all 225 adjacent code pairs and 225 one-term signed dot products, plus scale axes, padding, `N=33`, same-code INT64/FP64 references, malformed input, and accumulator-bound checks.
 - The example ran with both scale types.
 
-The INT4 maximum-K guard is checked analytically; the test does not allocate and multiply at that enormous limit. That historical run covered the core only; the current integration checks are listed above.
+The INT4 maximum-K guard is checked analytically; the test does not allocate and multiply at that enormous limit. That historical run covered the core only and predates CMake on that machine; the 2026-11-26 runs above replace it.
 
 ## Complexity and memory accounting
 

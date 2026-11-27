@@ -1,6 +1,6 @@
 # Member 1 Handoff: INT4 Storage, Quantization, and Scalar Kernel
 
-Status: implemented and locally tested; interface contract v1 is proposed for team adoption. This document is the integration reference for Members 2 and 3. Source declarations in `include/int4/core.hpp` are authoritative if a documentation discrepancy is found.
+Status: implemented and tested; interface contract v1 was accepted by the team on 2026-11-26 after the Section 6 adoption steps (see Section 7). This document is the integration reference for Members 2 and 3. Source declarations in `include/int4/core.hpp` are authoritative if a documentation discrepancy is found.
 
 ## Deliverables and boundaries
 
@@ -185,13 +185,31 @@ Debug suites pass. Both full precision sweeps have zero kernel mismatches and
 330/330 independent NumPy metric agreements in total. See
 [docs/validation_qinyan.md](docs/validation_qinyan.md) and
 [docs/report_qinyan_zeng.md](docs/report_qinyan_zeng.md).
-This records Member 2's integration checks; team-wide contract acceptance remains
-subject to the adoption steps in Section 6.
+**Member 1 acceptance (2026-11-26).** On the merged `main` (`f61c814`), all 54 CTest
+tests pass on Windows 11 with CMake 4.4.4 in four configurations:
 
-The following are the original Member 1 verification notes and Member 3's
-2026-11-21 addendum:
+| Configuration | Compiler | Result |
+| --- | --- | --- |
+| Release | GCC 16.1.0 (MSYS2 UCRT64), Ninja | 54/54 |
+| Debug, `-D_GLIBCXX_DEBUG -D_GLIBCXX_ASSERTIONS` | GCC 16.1.0, Ninja | 54/54 |
+| Release, `/W4 /permissive-` | MSVC 19.50 (Visual Studio 2026) | 54/54, no warnings |
+| Debug, `/fsanitize=address` | MSVC 19.50 (Visual Studio 2026) | 54/54, no AddressSanitizer reports |
 
-See [README.md](README.md) for exact build commands and environment details. The tested example is `examples/int4_basic.cpp`; the current test entry point is `tests/test_int4.cpp`. Float and double variants passed Release and Debug builds with warnings treated as errors. CMake/CTest, a supported sanitizer, rotation, the blocked path, and the full benchmark sweep remain unverified here.
+Python 3.14 with NumPy 2.4 was present, so the NumPy reference tests were registered and run.
+MinGW GCC has no AddressSanitizer on Windows, so the sanitizer run uses MSVC. The GCC Release
+build prints one `-Wmaybe-uninitialized` warning for `std::optional<bench::Fp32Linear>` in
+`bench/int4_bench.cpp`. It is a GCC 16 `-O3` false positive and does not affect any test.
+
+The Section 6 adoption steps are complete. `int4_tests` passes in all four configurations.
+The shared fixture passes through every path: the 12 `cli_handoff_*` tests (three modes,
+two kernels, two scale types) and `int4_blocked_tests`. Neither integration pull request
+changed `include/int4/core.hpp`. Contract v1 is accepted. These runs also close the GCC
+and MSVC gap noted in the Member 3 addendum below.
+
+The following are the original Member 1 verification notes (2026-11-04, before CMake was
+available on that machine) and Member 3's 2026-11-21 addendum:
+
+See [README.md](README.md) for exact build commands and environment details. The tested example is `examples/int4_basic.cpp`; the current test entry point is `tests/test_int4.cpp`. Float and double variants passed Release and Debug builds with warnings treated as errors. At that time CMake/CTest, a sanitizer, rotation, the blocked path, and the full benchmark sweep had not been run here; the 2026-11-26 runs above cover CMake/CTest and the sanitizer.
 
 Wooyoung Kim addendum (2026-11-21, macOS arm64, Apple clang 21, CMake 4.4): the full CTest suite of 7 tests, including the INT4 core tests above, passes in Release (`-O3 -DNDEBUG`). It also passes in a Debug build with `-DINT4_SANITIZE=ON`, which enables AddressSanitizer and UndefinedBehaviorSanitizer, together with libc++ debug hardening. The blocked path and the full 45-case sweep were run; see `results/2026-11-21_apple-m4/`. GCC and MSVC builds of the new files were not available in that environment and remain unverified.
 
